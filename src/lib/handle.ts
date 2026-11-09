@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { understand, saveSorted, type Sorted } from "./classify";
-import { createRoutine, findCheck, logRoutine, matchRoutine, whenSaid, agoSaid, type Routine } from "./routines";
+import { canonicalThing, createRoutine, findCheck, logRoutine, matchRoutine, whenSaid, agoSaid, type Routine } from "./routines";
 import { describeSchedule } from "./schedule";
 import { seedPacket, type Tip } from "./tips";
 import type { Capture } from "./types";
@@ -66,9 +66,12 @@ export async function handleMessage(
       }
 
       case "check_done": {
-        const { data } = await db.from("checks").insert({ user_id: userId, thing: item.thing, source }).select().single();
+        const { data: past } = await db.from("checks").select("thing").eq("user_id", userId)
+          .order("checked_at", { ascending: false }).limit(100);
+        const thing = canonicalThing([...new Set((past ?? []).map((c) => c.thing as string))], item.thing);
+        const { data } = await db.from("checks").insert({ user_id: userId, thing, source }).select().single();
         out.changedChecks = true;
-        out.lines.push(`Got it: ${item.thing}, ${whenSaid(data?.checked_at ?? new Date().toISOString(), tz)}. Ask me "did I…?" anytime.`);
+        out.lines.push(`Got it: ${thing}, ${whenSaid(data?.checked_at ?? new Date().toISOString(), tz)}. Ask me "did I…?" anytime.`);
         break;
       }
 

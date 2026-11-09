@@ -1,35 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Kind } from "./types";
-import type { Frequency } from "./schedule";
+import { fallbackUnderstand, type Sorted, type RoutineSpec, type Understood } from "./rules";
+
+export { fallbackUnderstand, fallbackSort, type Sorted, type RoutineSpec, type Understood } from "./rules";
 
 export const MODEL = "claude-haiku-5-5";
-
-export interface Sorted {
-  kind: Kind;
-  title: string;
-  list_name: string | null;
-  remind_at: string | null; // ISO 8601 with offset
-  confidence: number;
-}
-
-export interface RoutineSpec {
-  name: string;
-  kind: "meds" | "chore" | "checklist";
-  frequency: Frequency;
-  times: string[];
-  days_of_week: number[];
-  interval_days: number | null;
-  start_date: string | null;
-  checklist_items: string[];
-}
-
-export type Understood =
-  | ({ intent: "capture" } & Sorted)
-  | { intent: "log_routine"; routine_name: string; status: "done" | "skipped" }
-  | { intent: "check_done"; thing: string }
-  | { intent: "check_question"; thing: string }
-  | { intent: "new_routine"; routine: RoutineSpec };
 
 const TOOL = {
   name: "understand_message",
@@ -93,7 +69,7 @@ export async function understand(
   text: string,
   timezone: string
 ): Promise<Understood[]> {
-  if (!process.env.ANTHROPIC_API_KEY) return fallbackUnderstand(text);
+  if (!process.env.ANTHROPIC_API_KEY) return fallbackUnderstand(text, timezone);
 
   const [{ data: corrections }, { data: lists }, { data: routines }, { data: checks }] = await Promise.all([
     db.from("corrections").select("raw_text, to_kind, to_list").eq("user_id", userId)
@@ -136,10 +112,10 @@ export async function understand(
     const block = res.content.find((b) => b.type === "tool_use");
     const raw = (block && "input" in block ? (block.input as { items: Record<string, unknown>[] }).items : []) ?? [];
     const items = raw.map((r) => cleanItem(r, text)).filter(Boolean) as Understood[];
-    return items.length ? items : fallbackUnderstand(text);
+    return items.length ? items : fallbackUnderstand(text, timezone);
   } catch (err) {
     console.error("understand failed, using fallback", err);
-    return fallbackUnderstand(text);
+    return fallbackUnderstand(text, timezone);
   }
 }
 
@@ -183,34 +159,6 @@ function cleanItem(r: Record<string, unknown>, raw: string): Understood | null {
       };
     }
   }
-}
-
-/** Simple rules for when no AI key is set yet. */
-export function fallbackUnderstand(text: string): Understood[] {
-  const t = text.trim();
-  const lower = t.toLowerCase();
-  if (/^did i\b/.test(lower)) {
-    return [{ intent: "check_question", thing: lower.replace(/^did i\s+/, "").replace(/\?+$/, "") }];
-  }
-  if (/^(took|taken|i took)\b.*\b(meds|pills|medication|vitamins)\b/.test(lower)) {
-    return [{ intent: "log_routine", routine_name: "", status: "done" }];
-  }
-  if (/^(i )?(unplugged|turned off|switched off|locked|closed|shut)\b/.test(lower)) {
-    return [{ intent: "check_done", thing: lower.replace(/^i\s+/, "").slice(0, 80) }];
-  }
-  return [{ intent: "capture", ...fallbackSort(t) }];
-}
-
-export function fallbackSort(text: string): Sorted {
-  const t = text.trim();
-  const lower = t.toLowerCase();
-  if (/^(buy|get|grocer|add .* to)/.test(lower)) {
-    return { kind: "list", title: t, list_name: "groceries", remind_at: null, confidence: 0.3 };
-  }
-  if (/^(call|email|text|pay|book|schedule|send|fix|clean|remind)\b/.test(lower) || /\b(tomorrow|tmrw|tonight)\b/.test(lower)) {
-    return { kind: "task", title: t, list_name: null, remind_at: null, confidence: 0.3 };
-  }
-  return { kind: "note", title: t, list_name: null, remind_at: null, confidence: 0.3 };
 }
 
 /** Insert sorted captures and any suggested actions. Returns inserted rows. */

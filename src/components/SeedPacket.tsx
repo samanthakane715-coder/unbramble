@@ -1,5 +1,5 @@
 "use client";
-import type { Tip } from "@/lib/tips";
+import type { Tip } from "@/lib/tipsData";
 
 /** A small seed-packet card with a life hack or fun fact. */
 export function SeedPacket({ tip, onClose }: { tip: Tip; onClose: () => void }) {

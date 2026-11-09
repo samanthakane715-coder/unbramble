@@ -36,6 +36,7 @@ export function SignIn({ linkError }: { linkError: boolean }) {
         </button>
       </form>
       {error && <p className="error" role="alert">{error}</p>}
+      <p className="hint">Not ready to sign up? <a href="/demo">Look around the demo</a>, no account needed.</p>
     </>
   );
 }

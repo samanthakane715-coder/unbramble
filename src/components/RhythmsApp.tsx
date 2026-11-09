@@ -2,8 +2,8 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { describeSchedule, type Frequency } from "@/lib/schedule";
-import type { Check, Routine, RoutineLog } from "@/lib/routines";
-import type { Tip } from "@/lib/tips";
+import type { Check, Routine, RoutineLog } from "@/lib/match";
+import type { Tip } from "@/lib/tipsData";
 import { SeedPacket } from "./SeedPacket";
 
 interface Props {
@@ -12,6 +12,10 @@ interface Props {
   initialRoutines: Routine[];
   initialLogs: RoutineLog[];
   initialChecks: Check[];
+  /** Demo mode: swap in an in-memory backend. */
+  client?: unknown;
+  api?: typeof fetch;
+  demo?: boolean;
 }
 
 type Kind = Routine["kind"];
@@ -23,8 +27,9 @@ interface Draft {
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DEFAULT_CHECKS = ["stove off", "curling iron unplugged", "front door locked", "garage closed"];
 
-export function RhythmsApp({ tz, hasPhone, initialRoutines, initialLogs, initialChecks }: Props) {
-  const db = useMemo(() => createClient(), []);
+export function RhythmsApp({ tz, hasPhone, initialRoutines, initialLogs, initialChecks , client, api: apiProp, demo = false }: Props) {
+  const db = useMemo(() => (client ?? createClient()) as ReturnType<typeof createClient>, [client]);
+  const api: typeof fetch = apiProp ?? ((...a) => fetch(...a));
   const today = useMemo(() => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date()), [tz]);
   const [routines, setRoutines] = useState(initialRoutines);
   const [logs, setLogs] = useState(initialLogs);
@@ -48,7 +53,7 @@ export function RhythmsApp({ tz, hasPhone, initialRoutines, initialLogs, initial
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const res = await fetch("/api/routines", {
+    const res = await api("/api/routines", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: draft.name, kind: draft.kind, frequency: draft.frequency, times: draft.times,
@@ -66,7 +71,7 @@ export function RhythmsApp({ tz, hasPhone, initialRoutines, initialLogs, initial
 
   async function log(r: Routine, status: "done" | "skipped") {
     setError(null);
-    const res = await fetch(`/api/routines/${r.id}/log`, {
+    const res = await api(`/api/routines/${r.id}/log`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
     });
     const json = await res.json();

@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { Garden } from "./Garden";
 import { SeedPacket } from "./SeedPacket";
-import type { Tip } from "@/lib/tips";
+import type { Tip } from "@/lib/tipsData";
 import {
   BLOOMS_PER_SEASON, KIND_LABEL,
   type Action, type Capture, type Kind, type Plant, type Profile,
@@ -14,9 +14,13 @@ interface Props {
   initialCaptures: Capture[];
   initialPlants: Plant[];
   initialActions: Action[];
+  /** Demo mode: swap in an in-memory backend. */
+  client?: unknown;
+  api?: typeof fetch;
+  demo?: boolean;
 }
 
-export function GardenApp({ profile: initialProfile, initialCaptures, initialPlants, initialActions }: Props) {
+export function GardenApp({ profile: initialProfile, initialCaptures, initialPlants, initialActions , client, api: apiProp, demo = false }: Props) {
   const [profile, setProfile] = useState(initialProfile);
   const [captures, setCaptures] = useState(initialCaptures);
   const [plants, setPlants] = useState(initialPlants);
@@ -29,7 +33,8 @@ export function GardenApp({ profile: initialProfile, initialCaptures, initialPla
   const [tip, setTip] = useState<Tip | null>(null);
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const db = useMemo(() => createClient(), []);
+  const db = useMemo(() => (client ?? createClient()) as ReturnType<typeof createClient>, [client]);
+  const api: typeof fetch = apiProp ?? ((...a) => fetch(...a));
 
   const seasonPlants = plants.filter((p) => p.season === profile.season);
   const bloomed = seasonPlants.filter((p) => p.stage === 4).length;
@@ -50,7 +55,7 @@ export function GardenApp({ profile: initialProfile, initialCaptures, initialPla
     if (!text.trim() || busy) return;
     setBusy(true); setError(null); setNotice(null); setTip(null);
     try {
-      const res = await fetch("/api/capture", {
+      const res = await api("/api/capture", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
@@ -87,7 +92,7 @@ export function GardenApp({ profile: initialProfile, initialCaptures, initialPla
 
   async function tend(c: Capture) {
     setLeaving((s) => new Set(s).add(c.id));
-    const res = await fetch(`/api/captures/${c.id}/tend`, { method: "POST" });
+    const res = await api(`/api/captures/${c.id}/tend`, { method: "POST" });
     const json = await res.json();
     if (!res.ok || !json.ok) {
       setLeaving((s) => { const n = new Set(s); n.delete(c.id); return n; });
@@ -108,7 +113,7 @@ export function GardenApp({ profile: initialProfile, initialCaptures, initialPla
       listName = window.prompt("Name the new list")?.trim() || null;
       if (!listName) return;
     }
-    const res = await fetch(`/api/captures/${c.id}/resort`, {
+    const res = await api(`/api/captures/${c.id}/resort`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind, list_name: listName }),
     });
@@ -120,7 +125,7 @@ export function GardenApp({ profile: initialProfile, initialCaptures, initialPla
 
   async function settleAction(a: Action, status: "done" | "dismissed") {
     setActions((as) => as.filter((x) => x.id !== a.id));
-    await fetch(`/api/actions/${a.id}`, {
+    await api(`/api/actions/${a.id}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
     });
   }
@@ -176,7 +181,12 @@ export function GardenApp({ profile: initialProfile, initialCaptures, initialPla
         {actionsFor(c.id).length > 0 && (
           <span className="actions">
             {actionsFor(c.id).map((a) => (
-              a.action_type === "calendar_event" ? (
+              a.action_type === "calendar_event" && demo ? (
+                <button key={a.id} className="chip"
+                  onClick={() => { setNotice("In the real app, this downloads the event for Google, Apple or Outlook Calendar."); settleAction(a, "done"); }}>
+                  Add to calendar
+                </button>
+              ) : a.action_type === "calendar_event" ? (
                 <a key={a.id} className="chip" href={`/api/actions/${a.id}/ics`}
                   onClick={() => setTimeout(() => setActions((as) => as.filter((x) => x.id !== a.id)), 300)}>
                   Add to calendar
