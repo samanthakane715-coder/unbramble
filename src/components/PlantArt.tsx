@@ -6,6 +6,7 @@ const COLOR: Record<Species, string> = {
   sunflower: "var(--sun)",
   sprout: "var(--sprout)",
   moonflower: "var(--moon)",
+  herb: "var(--herb)",
 };
 
 /** One plant drawn at the origin, growing upward. Stage 0 (seed) to 4 (bloom). */
@@ -37,6 +38,35 @@ export function PlantArt({ species, stage }: { species: Species; stage: number }
                   <ellipse cx="-6" cy="0" rx="6" ry="2.4" fill={c} transform="rotate(-20)" />
                   <ellipse cx="6" cy="0" rx="6" ry="2.4" fill={c} transform="rotate(20)" />
                 </g>
+              ))}
+            </g>
+          );
+        })}
+      </g>
+    );
+  }
+
+  if (species === "herb") {
+    // a bushy sprig of sage-green leaves; blooms into lavender spikes
+    const stems = [-10, 0, 10];
+    return (
+      <g>
+        {stems.map((x, i) => {
+          const sh = h * (i === 1 ? 1 : 0.8);
+          return (
+            <g key={i}>
+              <path d={`M0 0 Q ${x / 2} ${-sh / 2} ${x} ${-sh}`} stroke={stem} strokeWidth="2.4" fill="none" strokeLinecap="round" />
+              {Array.from({ length: Math.max(1, Math.round(sh / 12)) }).map((_, j) => {
+                const t = (j + 1) / (Math.round(sh / 12) + 1);
+                return (
+                  <g key={j} transform={`translate(${x * t} ${-sh * t})`}>
+                    <ellipse cx="-4" cy="0" rx="4.5" ry="2.2" fill="var(--sprout)" transform="rotate(-35)" />
+                    <ellipse cx="4" cy="0" rx="4.5" ry="2.2" fill="var(--sprout)" transform="rotate(35)" />
+                  </g>
+                );
+              })}
+              {stage >= 3 && Array.from({ length: stage === 4 ? 5 : 2 }).map((_, k) => (
+                <ellipse key={k} cx={x} cy={-sh - 3 - k * 5} rx="2.6" ry="3.2" fill={c} />
               ))}
             </g>
           );

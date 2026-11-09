@@ -2,6 +2,8 @@
 import { useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { Garden } from "./Garden";
+import { SeedPacket } from "./SeedPacket";
+import type { Tip } from "@/lib/tips";
 import {
   BLOOMS_PER_SEASON, KIND_LABEL,
   type Action, type Capture, type Kind, type Plant, type Profile,
@@ -24,6 +26,7 @@ export function GardenApp({ profile: initialProfile, initialCaptures, initialPla
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [growingId, setGrowingId] = useState<string | null>(null);
+  const [tip, setTip] = useState<Tip | null>(null);
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const db = useMemo(() => createClient(), []);
@@ -45,7 +48,7 @@ export function GardenApp({ profile: initialProfile, initialCaptures, initialPla
   async function capture(e: React.FormEvent) {
     e.preventDefault();
     if (!text.trim() || busy) return;
-    setBusy(true); setError(null); setNotice(null);
+    setBusy(true); setError(null); setNotice(null); setTip(null);
     try {
       const res = await fetch("/api/capture", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -54,17 +57,32 @@ export function GardenApp({ profile: initialProfile, initialCaptures, initialPla
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Couldn't save that. Try again.");
       setCaptures((c) => [...json.captures, ...c]);
-      const { data: acts } = await db.from("actions").select("*").eq("status", "suggested");
-      if (acts) setActions(acts as Action[]);
+      if (json.captures.length) {
+        const { data: acts } = await db.from("actions").select("*").eq("status", "suggested");
+        if (acts) setActions(acts as Action[]);
+      }
       setText("");
       const n = json.captures.length;
-      setNotice(n === 1 ? `Filed as ${describe(json.captures[0])}.` : `Split into ${n} things and filed them.`);
+      const filed = n === 0 ? "" : n === 1 ? `Filed as ${describe(json.captures[0])}.` : `Split into ${n} things and filed them.`;
+      setNotice([...json.lines, filed].filter(Boolean).join(" "));
+      setTip(json.tip ?? null);
+      if (json.grew) await showGrowth(json.grew);
       inputRef.current?.focus();
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Refresh the garden and play the grow animation on the plant that changed. */
+  async function showGrowth(g: { species: string; stage: number; plant_id?: string }) {
+    const before = new Set(plants.map((p) => p.id));
+    const after = await refreshGarden();
+    const grown = after.find((p) => p.id === g.plant_id) ?? after.find((p) => !before.has(p.id))
+      ?? after.find((p) => p.species === g.species && p.stage === g.stage);
+    setGrowingId(grown?.id ?? null);
+    setTimeout(() => setGrowingId(null), 1200);
   }
 
   async function tend(c: Capture) {
@@ -76,12 +94,8 @@ export function GardenApp({ profile: initialProfile, initialCaptures, initialPla
       setError("Couldn't tend that one. Refresh and try again.");
       return;
     }
-    const before = new Set(plants.map((p) => p.id));
-    const after = await refreshGarden();
-    const grown = after.find((p) => !before.has(p.id))
-      ?? after.find((p) => p.species === json.species && p.stage === json.stage);
-    setGrowingId(grown?.id ?? null);
-    setTimeout(() => setGrowingId(null), 1200);
+    await showGrowth(json);
+    setTip(json.tip ?? null);
     setTimeout(() => setCaptures((cs) => cs.filter((x) => x.id !== c.id)), 400);
     setNotice(json.new_plant ? `A new ${json.species} went in the ground.`
       : json.stage === 4 ? `Your ${json.species} bloomed.` : `Your ${json.species} grew a little.`);
@@ -204,7 +218,8 @@ export function GardenApp({ profile: initialProfile, initialCaptures, initialPla
         <button className="btn" disabled={busy || !text.trim()}>{busy ? "Sorting…" : "Capture"}</button>
       </form>
       {error && <p className="error" role="alert">{error}</p>}
-      {!error && <p className="hint" aria-live="polite">{notice ?? "Dump it all in one go. Unbramble splits and sorts it for you."}</p>}
+      {!error && <p className="hint" aria-live="polite">{notice || "Dump it all in one go. Try “took my meds” or “did I unplug the curling iron?” too."}</p>}
+      {tip && <SeedPacket tip={tip} onClose={() => setTip(null)} />}
 
       <div className="brambles">
         <section className="patch" aria-labelledby="h-rem">

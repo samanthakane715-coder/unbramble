@@ -21,6 +21,13 @@ export function SettingsForm({ profile, email, smsNumber }: { profile: Profile; 
   const [code, setCode] = useState(profile.link_code);
   const [phone, setPhone] = useState(profile.phone);
   const [saved, setSaved] = useState<string | null>(null);
+  const [tips, setTips] = useState(profile.tips_enabled);
+
+  async function toggleTips(on: boolean) {
+    setTips(on);
+    const { error } = await db.from("profiles").update({ tips_enabled: on }).eq("id", profile.id);
+    setSaved(error ? "Couldn't save that." : on ? "Seed packets on." : "Seed packets off.");
+  }
 
   async function chooseTheme(t: Theme) {
     setTheme(t);
@@ -77,6 +84,15 @@ export function SettingsForm({ profile, email, smsNumber }: { profile: Profile; 
         ) : (
           <p>Texting in isn&apos;t switched on yet. Once a Twilio number is added, your connect code appears here.</p>
         )}
+      </section>
+
+      <section aria-labelledby="h-tips">
+        <h2 id="h-tips">Seed packets</h2>
+        <p>Short life hacks that match what you capture, and fun facts when your garden grows. By text, at most one a day.</p>
+        <label className="check-row">
+          <input type="checkbox" checked={tips} onChange={(e) => toggleTips(e.target.checked)} />
+          Show seed packets
+        </label>
       </section>
 
       <section aria-labelledby="h-time">

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { sortCapture, saveSorted } from "@/lib/classify";
+import { handleMessage } from "@/lib/handle";
 
 export async function POST(req: Request) {
   const db = await createClient();
@@ -11,8 +11,8 @@ export async function POST(req: Request) {
   const raw = String(text ?? "").trim().slice(0, 2000);
   if (!raw) return NextResponse.json({ error: "Write something to capture." }, { status: 400 });
 
-  const { data: profile } = await db.from("profiles").select("timezone").eq("id", user.id).single();
-  const items = await sortCapture(db, user.id, raw, profile?.timezone ?? "America/Los_Angeles");
-  const captures = await saveSorted(db, user.id, raw, items, "web");
-  return NextResponse.json({ captures });
+  const { data: profile } = await db.from("profiles").select("timezone, tips_enabled").eq("id", user.id).single();
+  const result = await handleMessage(db, user.id, raw, profile?.timezone ?? "America/Los_Angeles", "web");
+  if (!profile?.tips_enabled) result.tip = null;
+  return NextResponse.json(result);
 }

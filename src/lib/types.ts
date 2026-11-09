@@ -1,6 +1,6 @@
 export type Kind = "note" | "list" | "reminder" | "task";
 export type Theme = "earth" | "dusk" | "dazzle";
-export type Species = "fern" | "wildflower" | "sunflower" | "sprout" | "moonflower";
+export type Species = "fern" | "wildflower" | "sunflower" | "sprout" | "moonflower" | "herb";
 
 export interface Capture {
   id: string;
@@ -38,6 +38,7 @@ export interface Profile {
   season: number;
   streak_days: number;
   last_tended_on: string | null;
+  tips_enabled: boolean;
 }
 
 export interface Action {
