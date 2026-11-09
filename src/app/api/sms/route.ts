@@ -1,30 +1,23 @@
-import twilio from "twilio";
 import { createAdminClient } from "@/lib/supabase/server";
 import { handleMessage } from "@/lib/handle";
 import { KIND_LABEL, type Kind } from "@/lib/types";
+import { canReceive, replyXml as reply, verifySignature } from "@/lib/sms";
 
 export const runtime = "nodejs";
 
 const TIP_GAP_MS = 20 * 60 * 60 * 1000; // at most one seed packet per day by text
 
-function reply(message: string) {
-  const twiml = new twilio.twiml.MessagingResponse();
-  twiml.message(message);
-  return new Response(twiml.toString(), { headers: { "Content-Type": "text/xml" } });
-}
-
-/** Twilio calls this when someone texts your Unbramble number. */
+/** SignalWire calls this when someone texts your Unbramble number. */
 export async function POST(req: Request) {
   const form = await req.formData();
   const params: Record<string, string> = {};
   form.forEach((v, k) => (params[k] = String(v)));
 
-  // Only accept requests genuinely signed by Twilio
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const site = process.env.NEXT_PUBLIC_SITE_URL;
-  if (!token || !site) return new Response("Texting isn't set up yet.", { status: 503 });
-  const signature = req.headers.get("x-twilio-signature") ?? "";
-  if (!twilio.validateRequest(token, signature, `${site.replace(/\/$/, "")}/api/sms`, params)) {
+  // Only accept requests genuinely signed by SignalWire
+  if (!canReceive()) return new Response("Texting isn't set up yet.", { status: 503 });
+  const signature = req.headers.get("x-signalwire-signature") ?? req.headers.get("x-twilio-signature") ?? "";
+  const url = `${process.env.NEXT_PUBLIC_SITE_URL!.replace(/\/$/, "")}/api/sms`;
+  if (!verifySignature(signature, url, params)) {
     return new Response("Invalid signature", { status: 403 });
   }
 

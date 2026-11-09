@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SettingsForm } from "@/components/SettingsForm";
 import { TopBar } from "@/components/TopBar";
+import { smsNumber } from "@/lib/sms";
 import type { Profile } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export default async function SettingsPage() {
       <TopBar current="settings" />
       <h1>Settings</h1>
       <SettingsForm profile={profile as Profile} email={user.email ?? ""}
-        smsNumber={process.env.TWILIO_PHONE_NUMBER ?? null} />
+        smsNumber={smsNumber()} />
     </main>
   );
 }

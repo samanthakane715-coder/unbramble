@@ -82,7 +82,7 @@ export function SettingsForm({ profile, email, smsNumber }: { profile: Profile; 
             <button className="linklike" style={{ justifySelf: "start" }} onClick={newCode}>Get a new code</button>
           </>
         ) : (
-          <p>Texting in isn&apos;t switched on yet. Once a Twilio number is added, your connect code appears here.</p>
+          <p>Texting in isn&apos;t switched on yet. Once a texting number is added, your connect code appears here.</p>
         )}
       </section>
 

@@ -9,7 +9,7 @@ Text or type whatever's on your mind. Unbramble sorts it into reminders, to-dos,
 | Web app (Next.js) | `src/app`, hosted on **Vercel** |
 | Database + sign-in | **Supabase** project `itgdrdyebvqotpxsncem` |
 | Sorting + learning | Claude API (`src/lib/classify.ts`) |
-| Texting in + reminders | **Twilio** webhook `src/app/api/sms`, reminder sender `src/app/api/cron/reminders` |
+| Texting in + reminders | **SignalWire** (`src/lib/sms.ts`): webhook `src/app/api/sms`, nudge sender `src/app/api/cron/reminders` |
 
 ### Garden rules
 - Finishing a note grows a fern, a list item a wildflower, a reminder a sunflower, a to-do a moonflower.
@@ -36,7 +36,10 @@ When you move something (say a "note" into your groceries list), Unbramble saves
 
 1. **Vercel environment variables** (Project → Settings → Environment Variables). See `.env.example` for the full list.
 2. **Supabase auth URLs**: Authentication → URL Configuration → set Site URL to your Vercel URL and add `https://YOUR-URL/auth/callback` to Redirect URLs.
-3. **Twilio**: buy a number, then under that number's Messaging settings set "A message comes in" to `https://YOUR-URL/api/sms` (HTTP POST).
+3. **SignalWire**:
+   - Create a Space, buy a local number, and register it for texting (Messaging → Campaign Registry: a brand, then a campaign; approval takes a few business days).
+   - In the number's settings, handle messages with **LaML/cXML webhooks** and set the incoming-message URL to `https://YOUR-URL/api/sms` (POST).
+   - Add the `SIGNALWIRE_*` values from API Credentials to Vercel (see `.env.example`). The API token needs the Messaging scope.
 4. **Nudges + reminder texts**: Supabase job `unbramble-nudges` (pg_cron + pg_net) calls `/api/cron/reminders` every 5 minutes, using the `unbramble_cron_secret` vault secret, which matches `CRON_SECRET` in Vercel.
 
 ## Run locally

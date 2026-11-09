@@ -1,7 +1,7 @@
-import twilio from "twilio";
 import { createAdminClient } from "@/lib/supabase/server";
 import { nextDue } from "@/lib/schedule";
 import type { Routine } from "@/lib/routines";
+import { canSend, sendSms } from "@/lib/sms";
 
 export const runtime = "nodejs";
 
@@ -23,16 +23,14 @@ export async function GET(req: Request) {
   if (!process.env.CRON_SECRET || req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
     return new Response("Unauthorized", { status: 401 });
   }
-  const { TWILIO_ACCOUNT_SID: sid, TWILIO_AUTH_TOKEN: token, TWILIO_PHONE_NUMBER: number } = process.env;
-  const sms = sid && token && number ? twilio(sid, token) : null;
+  const sms = canSend();
   const db = createAdminClient();
   const now = Date.now();
   const stats = { reminders: 0, nudges: 0, followups: 0, missed: 0 };
 
   const send = async (to: string | undefined, body: string) => {
     if (!sms || !to) return false;
-    try { await sms.messages.create({ to, from: number!, body }); return true; }
-    catch (err) { console.error("sms failed", err); return false; }
+    return sendSms(to, body);
   };
 
   // ---- One-off reminders from captures ----
